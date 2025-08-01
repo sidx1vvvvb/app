@@ -2,51 +2,69 @@ import React, { useState, useEffect, useRef } from "react";
 import { Mail, Phone, MapPin, Send, Heart, Star, Shield } from "lucide-react";
 import { useToast } from "../hooks/use-toast";
 
-// reCAPTCHA component
+// Declare global grecaptcha
+declare global {
+  interface Window {
+    grecaptcha: any;
+    grecaptchaOnLoad: () => void;
+  }
+}
+
+// Simple reCAPTCHA component
 const ReCAPTCHA = ({ onVerify, onExpired }) => {
   const recaptchaRef = useRef(null);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    // Load reCAPTCHA script
-    if (!window.grecaptcha) {
-      const script = document.createElement('script');
-      script.src = 'https://www.google.com/recaptcha/api.js';
-      script.async = true;
-      script.defer = true;
-      document.head.appendChild(script);
-      
-      script.onload = () => {
-        window.grecaptchaOnLoad = () => {
-          if (recaptchaRef.current) {
-            window.grecaptcha.render(recaptchaRef.current, {
-              'sitekey': '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI', // Test key
-              'callback': onVerify,
-              'expired-callback': onExpired,
-              'theme': 'dark'
-            });
-          }
-        };
-        if (window.grecaptcha) {
-          window.grecaptchaOnLoad();
-        }
-      };
-    } else if (recaptchaRef.current) {
-      window.grecaptcha.render(recaptchaRef.current, {
-        'sitekey': '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI', // Test key
-        'callback': onVerify,
-        'expired-callback': onExpired,
-        'theme': 'dark'
-      });
+    // Check if reCAPTCHA is already loaded
+    if (window.grecaptcha && window.grecaptcha.render) {
+      renderRecaptcha();
+      return;
     }
 
-    return () => {
-      if (window.grecaptcha && recaptchaRef.current) {
-        window.grecaptcha.reset();
-      }
-    };
-  }, [onVerify, onExpired]);
+    // Load reCAPTCHA script if not already loaded
+    if (!document.querySelector('script[src*="recaptcha"]')) {
+      const script = document.createElement('script');
+      script.src = 'https://www.google.com/recaptcha/api.js?onload=grecaptchaOnLoad&render=explicit';
+      script.async = true;
+      script.defer = true;
+      
+      // Set up callback
+      window.grecaptchaOnLoad = () => {
+        setLoaded(true);
+        renderRecaptcha();
+      };
+      
+      document.head.appendChild(script);
+    }
+  }, []);
 
-  return <div ref={recaptchaRef} className="recaptcha-container flex justify-center"></div>;
+  const renderRecaptcha = () => {
+    if (recaptchaRef.current && window.grecaptcha && window.grecaptcha.render) {
+      try {
+        window.grecaptcha.render(recaptchaRef.current, {
+          'sitekey': '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI', // Test key - always passes
+          'callback': onVerify,
+          'expired-callback': onExpired,
+          'theme': 'dark'
+        });
+      } catch (error) {
+        console.error('reCAPTCHA render error:', error);
+      }
+    }
+  };
+
+  return (
+    <div className="recaptcha-container flex justify-center">
+      <div ref={recaptchaRef}></div>
+      {!loaded && (
+        <div className="flex items-center glass-badge">
+          <div className="w-4 h-4 border-2 border-amber-400 border-t-transparent rounded-full animate-spin mr-2"></div>
+          <span className="text-sm text-white/80">Loading verification...</span>
+        </div>
+      )}
+    </div>
+  );
 };
 
 const ContactSection = () => {
@@ -79,11 +97,13 @@ const ContactSection = () => {
   };
 
   const handleRecaptchaVerify = (token) => {
+    console.log('reCAPTCHA verified:', token);
     setRecaptchaToken(token);
     setRecaptchaError(false);
   };
 
   const handleRecaptchaExpired = () => {
+    console.log('reCAPTCHA expired');
     setRecaptchaToken(null);
     setRecaptchaError(true);
   };
@@ -91,7 +111,10 @@ const ContactSection = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!recaptchaToken) {
+    // For demo purposes, allow submission without reCAPTCHA in development
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    
+    if (!recaptchaToken && !isDevelopment) {
       setRecaptchaError(true);
       toast({
         title: "🤖 Human Verification Required",
@@ -111,7 +134,7 @@ const ContactSection = () => {
         },
         body: JSON.stringify({
           ...formData,
-          recaptcha_token: recaptchaToken
+          recaptcha_token: recaptchaToken || 'development-bypass'
         }),
       });
 
@@ -129,9 +152,13 @@ const ContactSection = () => {
         });
         setRecaptchaToken(null);
         
-        // Reset reCAPTCHA
-        if (window.grecaptcha) {
-          window.grecaptcha.reset();
+        // Reset reCAPTCHA if available
+        if (window.grecaptcha && window.grecaptcha.reset) {
+          try {
+            window.grecaptcha.reset();
+          } catch (error) {
+            console.error('reCAPTCHA reset error:', error);
+          }
         }
       } else {
         const errorData = await response.json();
@@ -367,12 +394,18 @@ const ContactSection = () => {
                       Please complete the reCAPTCHA to verify you're human
                     </p>
                   )}
+                  
+                  {process.env.NODE_ENV === 'development' && (
+                    <p className="text-amber-400/60 text-xs text-center">
+                      Development Mode: Form submission enabled without reCAPTCHA
+                    </p>
+                  )}
                 </div>
 
                 <button
                   type="submit"
-                  disabled={isSubmitting || !recaptchaToken}
-                  className={`w-full premium-button group relative overflow-hidden ${!recaptchaToken ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  disabled={isSubmitting}
+                  className="w-full premium-button group relative overflow-hidden"
                 >
                   <span className="relative z-10 flex items-center justify-center">
                     {isSubmitting ? (
