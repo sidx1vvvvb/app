@@ -191,7 +191,8 @@ class MatiBackendTester:
         }
         
         try:
-            async with self.session.post(f"{BACKEND_URL}/contact", json=contact_data) as response:
+            # Use trailing slash to avoid redirect
+            async with self.session.post(f"{BACKEND_URL}/contact/", json=contact_data) as response:
                 if response.status == 200:
                     result = await response.json()
                     if result.get("recaptcha_verified") and result.get("email") == contact_data["email"]:
@@ -210,7 +211,8 @@ class MatiBackendTester:
         invalid_contact_data["email"] = "test.invalid@example.com"
         
         try:
-            async with self.session.post(f"{BACKEND_URL}/contact", json=invalid_contact_data) as response:
+            # Use trailing slash to avoid redirect
+            async with self.session.post(f"{BACKEND_URL}/contact/", json=invalid_contact_data) as response:
                 if response.status == 400:
                     error_data = await response.json()
                     if "reCAPTCHA verification failed" in error_data.get("detail", ""):
@@ -218,7 +220,8 @@ class MatiBackendTester:
                     else:
                         self.log_test("Contact Form - Invalid reCAPTCHA", False, f"Unexpected error message: {error_data}")
                 else:
-                    self.log_test("Contact Form - Invalid reCAPTCHA", False, f"Expected HTTP 400, got {response.status}")
+                    response_text = await response.text()
+                    self.log_test("Contact Form - Invalid reCAPTCHA", False, f"Expected HTTP 400, got {response.status}: {response_text}")
         except Exception as e:
             self.log_test("Contact Form - Invalid reCAPTCHA", False, f"Exception: {str(e)}")
     
