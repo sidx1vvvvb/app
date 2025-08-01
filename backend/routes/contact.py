@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException, Query
 from typing import List, Optional
 import logging
-from ..models.Contact import Contact, ContactCreate, ContactUpdate, Newsletter, NewsletterCreate
-from ..database import db
+from models.Contact import Contact, ContactCreate, ContactUpdate, Newsletter, NewsletterCreate
+from database import db
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/contact", tags=["contact"])
