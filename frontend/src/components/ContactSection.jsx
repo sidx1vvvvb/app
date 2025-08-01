@@ -2,14 +2,6 @@ import React, { useState, useEffect, useRef } from "react";
 import { Mail, Phone, MapPin, Send, Heart, Star, Shield } from "lucide-react";
 import { useToast } from "../hooks/use-toast";
 
-// Declare global grecaptcha
-declare global {
-  interface Window {
-    grecaptcha: any;
-    grecaptchaOnLoad: () => void;
-  }
-}
-
 // Simple reCAPTCHA component
 const ReCAPTCHA = ({ onVerify, onExpired }) => {
   const recaptchaRef = useRef(null);
