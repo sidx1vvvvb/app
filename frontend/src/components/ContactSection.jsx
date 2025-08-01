@@ -1,6 +1,53 @@
-import React, { useState, useEffect } from "react";
-import { Mail, Phone, MapPin, Send, Heart, Star } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { Mail, Phone, MapPin, Send, Heart, Star, Shield } from "lucide-react";
 import { useToast } from "../hooks/use-toast";
+
+// reCAPTCHA component
+const ReCAPTCHA = ({ onVerify, onExpired }) => {
+  const recaptchaRef = useRef(null);
+
+  useEffect(() => {
+    // Load reCAPTCHA script
+    if (!window.grecaptcha) {
+      const script = document.createElement('script');
+      script.src = 'https://www.google.com/recaptcha/api.js';
+      script.async = true;
+      script.defer = true;
+      document.head.appendChild(script);
+      
+      script.onload = () => {
+        window.grecaptchaOnLoad = () => {
+          if (recaptchaRef.current) {
+            window.grecaptcha.render(recaptchaRef.current, {
+              'sitekey': '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI', // Test key
+              'callback': onVerify,
+              'expired-callback': onExpired,
+              'theme': 'dark'
+            });
+          }
+        };
+        if (window.grecaptcha) {
+          window.grecaptchaOnLoad();
+        }
+      };
+    } else if (recaptchaRef.current) {
+      window.grecaptcha.render(recaptchaRef.current, {
+        'sitekey': '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI', // Test key
+        'callback': onVerify,
+        'expired-callback': onExpired,
+        'theme': 'dark'
+      });
+    }
+
+    return () => {
+      if (window.grecaptcha && recaptchaRef.current) {
+        window.grecaptcha.reset();
+      }
+    };
+  }, [onVerify, onExpired]);
+
+  return <div ref={recaptchaRef} className="recaptcha-container flex justify-center"></div>;
+};
 
 const ContactSection = () => {
   const [formData, setFormData] = useState({
@@ -11,6 +58,8 @@ const ContactSection = () => {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const [recaptchaToken, setRecaptchaToken] = useState(null);
+  const [recaptchaError, setRecaptchaError] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -29,26 +78,74 @@ const ContactSection = () => {
     }));
   };
 
+  const handleRecaptchaVerify = (token) => {
+    setRecaptchaToken(token);
+    setRecaptchaError(false);
+  };
+
+  const handleRecaptchaExpired = () => {
+    setRecaptchaToken(null);
+    setRecaptchaError(true);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (!recaptchaToken) {
+      setRecaptchaError(true);
+      toast({
+        title: "🤖 Human Verification Required",
+        description: "Please complete the reCAPTCHA to prove you're human!",
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    console.log("Premium form submitted:", formData);
-    toast({
-      title: "✨ Message Sent with Love!",
-      description: "Our artisan team will craft a personalized response just for you.",
-    });
-    
-    setFormData({
-      name: "",
-      email: "",
-      message: "",
-      newsletter: false
-    });
-    setIsSubmitting(false);
+    try {
+      const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+      const response = await fetch(`${BACKEND_URL}/api/contact`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...formData,
+          recaptcha_token: recaptchaToken
+        }),
+      });
+
+      if (response.ok) {
+        toast({
+          title: "✨ Message Sent with Love!",
+          description: "Our artisan team will craft a personalized response just for you.",
+        });
+        
+        setFormData({
+          name: "",
+          email: "",
+          message: "",
+          newsletter: false
+        });
+        setRecaptchaToken(null);
+        
+        // Reset reCAPTCHA
+        if (window.grecaptcha) {
+          window.grecaptcha.reset();
+        }
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to send message');
+      }
+    } catch (error) {
+      console.error('Contact form error:', error);
+      toast({
+        title: "❌ Oops! Something went wrong",
+        description: error.message || "Please try again later or contact us directly.",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const contactInfo = [
@@ -249,10 +346,33 @@ const ContactSection = () => {
                   </label>
                 </div>
 
+                {/* reCAPTCHA */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-center">
+                    <div className="flex items-center glass-badge">
+                      <Shield className="w-4 h-4 text-amber-400 mr-2" />
+                      <span className="text-sm font-medium text-white/80">Human Verification</span>
+                    </div>
+                  </div>
+                  
+                  <div className={`transition-all duration-300 ${recaptchaError ? 'ring-2 ring-red-500/50 rounded-lg p-2' : ''}`}>
+                    <ReCAPTCHA 
+                      onVerify={handleRecaptchaVerify}
+                      onExpired={handleRecaptchaExpired}
+                    />
+                  </div>
+                  
+                  {recaptchaError && (
+                    <p className="text-red-400 text-sm text-center">
+                      Please complete the reCAPTCHA to verify you're human
+                    </p>
+                  )}
+                </div>
+
                 <button
                   type="submit"
-                  disabled={isSubmitting}
-                  className="w-full premium-button group relative overflow-hidden"
+                  disabled={isSubmitting || !recaptchaToken}
+                  className={`w-full premium-button group relative overflow-hidden ${!recaptchaToken ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   <span className="relative z-10 flex items-center justify-center">
                     {isSubmitting ? (
@@ -272,9 +392,9 @@ const ContactSection = () => {
 
               <p className="text-xs text-white/50 mt-6 text-center leading-relaxed">
                 This sacred space is protected by reCAPTCHA and the Google{" "}
-                <a href="#" className="text-amber-400 hover:underline transition-colors duration-300">Privacy Policy</a>{" "}
+                <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" className="text-amber-400 hover:underline transition-colors duration-300">Privacy Policy</a>{" "}
                 and{" "}
-                <a href="#" className="text-amber-400 hover:underline transition-colors duration-300">Terms of Service</a>{" "}
+                <a href="https://policies.google.com/terms" target="_blank" rel="noopener noreferrer" className="text-amber-400 hover:underline transition-colors duration-300">Terms of Service</a>{" "}
                 apply. Your trust is our most precious ingredient.
               </p>
             </div>
