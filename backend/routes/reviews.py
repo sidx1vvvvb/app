@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException, Query
 from typing import List, Optional
 import logging
-from ..models.Review import Review, ReviewCreate, ReviewUpdate
-from ..database import db
+from models.Review import Review, ReviewCreate, ReviewUpdate
+from database import db
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/reviews", tags=["reviews"])
