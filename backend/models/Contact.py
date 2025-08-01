@@ -10,6 +10,7 @@ class Contact(BaseModel):
     message: str
     newsletter: bool = False
     status: str = "new"  # 'new', 'read', 'replied'
+    recaptcha_verified: bool = False
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -18,6 +19,7 @@ class ContactCreate(BaseModel):
     email: EmailStr
     message: str
     newsletter: bool = False
+    recaptcha_token: str
 
 class ContactUpdate(BaseModel):
     status: Optional[str] = None
