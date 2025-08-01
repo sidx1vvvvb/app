@@ -40,6 +40,19 @@
   @apply backdrop-blur-sm bg-white/5 border border-white/10;
 }
 
+/* Premium reCAPTCHA Styling */
+.recaptcha-container {
+  @apply rounded-2xl overflow-hidden;
+  filter: drop-shadow(0 8px 25px rgba(0, 0, 0, 0.15));
+}
+
+.recaptcha-container iframe {
+  @apply rounded-2xl;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  backdrop-filter: blur(10px) !important;
+}
+
 /* Premium Buttons */
 .premium-button {
   @apply relative px-12 py-4 bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 text-white font-medium rounded-full overflow-hidden;
@@ -73,6 +86,15 @@
     0 25px 50px rgba(245, 158, 11, 0.6),
     0 10px 25px rgba(0, 0, 0, 0.15),
     inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.premium-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: 
+    0 10px 25px rgba(245, 158, 11, 0.2),
+    0 3px 10px rgba(0, 0, 0, 0.1);
 }
 
 .premium-button-small {
