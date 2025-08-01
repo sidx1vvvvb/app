@@ -1,17 +1,48 @@
 from fastapi import APIRouter, HTTPException, Query
 from typing import List, Optional
 import logging
+import httpx
+import os
 from models.Contact import Contact, ContactCreate, ContactUpdate, Newsletter, NewsletterCreate
 from database import db
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/contact", tags=["contact"])
 
+async def verify_recaptcha(token: str) -> bool:
+    """Verify reCAPTCHA token with Google's API"""
+    try:
+        # Get secret key from environment (use test secret for development)
+        secret_key = os.getenv('RECAPTCHA_SECRET_KEY', '6LeIxAcTAAAAAGG-vFI1TnRWxMZNFuojJ4WifJWe')  # Test key
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                'https://www.google.com/recaptcha/api/siteverify',
+                data={
+                    'secret': secret_key,
+                    'response': token
+                }
+            )
+            
+            result = response.json()
+            return result.get('success', False)
+    except Exception as e:
+        logger.error(f"reCAPTCHA verification failed: {e}")
+        return False
+
 @router.post("/", response_model=Contact)
 async def submit_contact_form(contact: ContactCreate):
-    """Submit a contact form"""
+    """Submit a contact form with reCAPTCHA verification"""
     try:
+        # Verify reCAPTCHA token
+        if not await verify_recaptcha(contact.recaptcha_token):
+            raise HTTPException(status_code=400, detail="reCAPTCHA verification failed. Please try again.")
+        
+        # Create contact without the recaptcha_token field
         contact_dict = contact.dict()
+        contact_dict.pop('recaptcha_token', None)  # Remove recaptcha_token from the data
+        contact_dict['recaptcha_verified'] = True  # Mark as verified
+        
         new_contact = Contact(**contact_dict)
         
         # Save contact to database
@@ -28,8 +59,10 @@ async def submit_contact_form(contact: ContactCreate):
             except Exception as e:
                 logger.warning(f"Failed to subscribe to newsletter: {e}")
         
-        logger.info(f"New contact submission from {contact.email}")
+        logger.info(f"New contact submission from {contact.email} (reCAPTCHA verified)")
         return new_contact
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error submitting contact form: {e}")
         raise HTTPException(status_code=500, detail="Failed to submit contact form")
