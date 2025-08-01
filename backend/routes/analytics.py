@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 import logging
 from datetime import datetime, timedelta
-from ..database import db
+from database import db
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/analytics", tags=["analytics"])
