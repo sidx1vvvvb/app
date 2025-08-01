@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException, Query
 from typing import List, Optional
 import logging
-from ..models.Product import Product, ProductCreate, ProductUpdate
-from ..database import db
+from models.Product import Product, ProductCreate, ProductUpdate
+from database import db
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/products", tags=["products"])
